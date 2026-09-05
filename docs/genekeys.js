@@ -187,13 +187,20 @@ function julianischesDatumFormel(jahr, monat, tag, stundeDezimal, kalender) {
 }
 
 // Geburts-JD (UT) aus lokalem Datum/Uhrzeit/Zone/Kalender -- mirror von
-// zeit.lokal_zu_jd_ut(): bei julianischer Deutung wird das DATUM zuerst
-// ins Gregorianische geschoben, die Zeitzone gilt fuer den verschobenen
-// (gregorianischen) Moment, weil nur dafuer echte DST-Regeln existieren.
+// zeit.lokal_zu_jd_ut(): bei julianischer Deutung wird das DATUM ins
+// Gregorianische geschoben, die Uhrzeit bleibt stehen. Der Zeitzonen-
+// Versatz richtet sich nach dem EINGETRAGENEN Datum, nicht nach dem
+// verschobenen -- 16.03.2006 julianisch traegt die Winterzeit des
+// 16. Maerz, obwohl der gerechnete 29.03.2006 schon Sommerzeit hat.
+// Andersherum laege man eine Stunde daneben, was beim schnellen Mond
+// schon eine falsche Linie ergibt.
 function geburtsJdBerechnen(jahr, monat, tag, stunde, minute, zone, kalender) {
   const jdMitternacht = julianischesDatumFormel(jahr, monat, tag, 0.0, kalender);
   const g = gregorianischAusJd(jdMitternacht);
-  const millis = lokalZuUtcMillis(g.jahr, g.monat, g.tag, stunde, minute, zone);
+  const eingetragenDigits = Date.UTC(jahr, monat - 1, tag, stunde, minute);
+  const versatz = eingetragenDigits
+    - lokalZuUtcMillis(jahr, monat, tag, stunde, minute, zone);
+  const millis = Date.UTC(g.jahr, g.monat - 1, g.tag, stunde, minute) - versatz;
   const d = new Date(millis);
   const stundeUtDezimal = d.getUTCHours() + d.getUTCMinutes() / 60
     + (d.getUTCSeconds() + d.getUTCMilliseconds() / 1000) / 3600;

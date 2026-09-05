@@ -60,18 +60,33 @@ def lokal_zu_jd_ut(jahr: int, monat: int, tag: int, stunde: int,
     zone -- IANA-Zeitzonenname, z. B. "Europe/Berlin", "America/New_York".
     kalender -- "gregorianisch" oder "julianisch" (siehe Moduldoku).
 
-    Bei julianischer Deutung wird das DATUM zuerst ins Gregorianische
-    geschoben, die UHRZEIT bleibt gleich -- die Zeitzone (samt
-    Sommerzeitregel) gilt fuer den verschobenen, gregorianischen Moment,
-    weil nur dafuer echte DST-Regeln existieren.
+    Bei julianischer Deutung wird das DATUM ins Gregorianische geschoben,
+    die UHRZEIT bleibt die eingetragene Uhrzeit am verschobenen Datum.
+
+    Der Zeitzonen-Versatz richtet sich dabei nach dem EINGETRAGENEN Datum,
+    nicht nach dem verschobenen: 16.03.2006 14:14 julianisch traegt die
+    Winterzeit des 16. Maerz (MEZ), obwohl der gerechnete 29.03.2006
+    bereits in der Sommerzeit liegt. Andersherum laege man eine Stunde
+    daneben -- beim schnellen Mond reicht das fuer eine falsche Linie.
     """
     jd_mitternacht = julianisches_datum(jahr, monat, tag, 0.0, kalender)
     gj, gm, gt, _ = gregorianisch_aus_jd(jd_mitternacht)
     try:
-        lokal = datetime(gj, gm, gt, stunde, minute, tzinfo=ZoneInfo(zone))
+        versatz = datetime(jahr, monat, tag, stunde, minute,
+                           tzinfo=ZoneInfo(zone)).utcoffset()
+    except ValueError:
+        # Eingetragenes Datum gibt es gregorianisch nicht (z. B. 29.02. in
+        # einem nur julianischen Schaltjahr) -- dann der Versatz des
+        # verschobenen Datums.
+        try:
+            versatz = datetime(gj, gm, gt, stunde, minute,
+                               tzinfo=ZoneInfo(zone)).utcoffset()
+        except ValueError as e:
+            raise ValueError(f"Datum/Zeit ungueltig: {e}")
+    try:
+        utc = datetime(gj, gm, gt, stunde, minute) - versatz
     except ValueError as e:
         raise ValueError(f"Datum/Zeit ungueltig: {e}")
-    utc = lokal.astimezone(ZoneInfo("UTC"))
     stunde_dezimal = (utc.hour + utc.minute / 60.0
                       + (utc.second + utc.microsecond / 1e6) / 3600.0)
     return julianisches_datum(utc.year, utc.month, utc.day, stunde_dezimal)
