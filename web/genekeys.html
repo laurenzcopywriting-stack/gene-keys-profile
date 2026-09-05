@@ -59,6 +59,11 @@
         <select id="zone"></select>
       </div>
     </div>
+    <label for="kalender">Kalenderdeutung</label>
+    <select id="kalender">
+      <option value="gregorianisch">Gregorianisch (bürgerlich – Gene-Keys-Standard)</option>
+      <option value="julianisch">Julianisch (AstroChing)</option>
+    </select>
     <button type="submit" id="knopf">Profil berechnen</button>
     <p class="hinweis" id="fehlerzeile"></p>
   </form>
@@ -130,17 +135,19 @@ $("formular").addEventListener("submit", e => {
   fehler("");
   const datum = $("datum").value.trim(), zeit = $("zeit").value.trim();
   if (!datum || !zeit) { fehler("Bitte Datum und Uhrzeit eingeben."); return; }
-  const u = new URLSearchParams({ datum, zeit, zone: $("zone").value });
+  const u = new URLSearchParams({ datum, zeit, zone: $("zone").value,
+                                 kalender: $("kalender").value });
   location.href = "/genekeys-mandala?" + u.toString();
 });
 
 // Deep-Link: mit vorbelegten Parametern direkt aufrufen, z. B.
-// /?datum=16.03.2006&zeit=14:14&zone=Europe/Berlin
+// /?datum=16.03.2006&zeit=14:14&zone=Europe/Berlin&kalender=gregorianisch
 (function vorbelegen() {
   const q = new URLSearchParams(location.search);
   if (q.has("datum")) $("datum").value = q.get("datum");
   if (q.has("zeit")) $("zeit").value = q.get("zeit");
   if (q.has("zone")) $("zone").value = q.get("zone");
+  if (q.has("kalender")) $("kalender").value = q.get("kalender");
 })();
 </script>
 </body>

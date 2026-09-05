@@ -17,7 +17,7 @@ import argparse
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 from genekeys import gene_keys, genekeys_web, zeit
 
@@ -33,12 +33,16 @@ def _eingabe_lesen(p: dict) -> tuple[float, dict]:
     except (KeyError, ValueError):
         raise ApiFehler("datum als TT.MM.JJJJ und zeit als HH:MM angeben")
     zone = p.get("zone", "Europe/Berlin")
+    kalender = p.get("kalender") or "gregorianisch"
+    if kalender not in ("gregorianisch", "julianisch"):
+        raise ApiFehler("kalender: gregorianisch oder julianisch")
     try:
-        jd = zeit.lokal_zu_jd_ut(jahr, monat, tag, stunde, minute, zone=zone)
+        jd = zeit.lokal_zu_jd_ut(jahr, monat, tag, stunde, minute, zone=zone,
+                                 kalender=kalender)
     except ValueError as e:
         raise ApiFehler(str(e))
     m = {"tag": tag, "monat": monat, "jahr": jahr, "stunde": stunde,
-         "minute": minute, "zone": zone}
+         "minute": minute, "zone": zone, "kalender": kalender}
     return jd, m
 
 
@@ -47,39 +51,26 @@ def genekeys_berechnen(p: dict) -> dict:
     pr = gene_keys.profil(jd)
     return {"eingabe": {"datum": f"{m['tag']:02d}.{m['monat']:02d}.{m['jahr']}",
                         "zeit": f"{m['stunde']:02d}:{m['minute']:02d}",
-                        "zone": m["zone"]}, **pr}
+                        "zone": m["zone"], "kalender": m["kalender"]}, **pr}
 
 
 def genekeys_mandala_html(p: dict) -> bytes:
     jd, m = _eingabe_lesen(p)
     pr = gene_keys.profil(jd)
-    d_jahr, d_monat, d_tag, _ = _gregorianisch_aus_jd(pr["design_jd"])
+    d_jahr, d_monat, d_tag, _ = zeit.gregorianisch_aus_jd(pr["design_jd"])
+
+    andere_kalender = ("julianisch" if m["kalender"] == "gregorianisch"
+                       else "gregorianisch")
+    andere_url = "/genekeys-mandala?" + urlencode({**p, "kalender": andere_kalender})
+
     kopf = {
         "zeile": (f"{m['tag']:02d}.{m['monat']:02d}.{m['jahr']} · "
-                 f"{m['stunde']:02d}:{m['minute']:02d} · {m['zone']}"),
+                 f"{m['stunde']:02d}:{m['minute']:02d} · {m['zone']} · "
+                 f"{m['kalender']}"),
         "design_datum": f"{int(d_tag):02d}.{int(d_monat):02d}.{int(d_jahr)}",
+        "andere_url": andere_url, "andere_kalender": andere_kalender,
     }
     return genekeys_web.mandala_html(pr, kopf)
-
-
-def _gregorianisch_aus_jd(jd: float) -> tuple[int, int, int, float]:
-    """Gregorianisches Kalenderdatum (Jahr, Monat, Tag, Stunde) aus JD."""
-    import math
-    z = math.floor(jd + 0.5)
-    f = jd + 0.5 - z
-    if z >= 2299161:
-        a = math.floor((z - 1867216.25) / 36524.25)
-        A = z + 1 + a - a // 4
-    else:
-        A = z
-    B = A + 1524
-    C = math.floor((B - 122.1) / 365.25)
-    D = math.floor(365.25 * C)
-    E = math.floor((B - D) / 30.6001)
-    tag = B - D - math.floor(30.6001 * E)
-    monat = E - 1 if E < 14 else E - 13
-    jahr = C - 4716 if monat > 2 else C - 4715
-    return int(jahr), int(monat), int(tag), f * 24.0
 
 
 class Handler(BaseHTTPRequestHandler):

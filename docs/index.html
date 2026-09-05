@@ -88,6 +88,11 @@
           <select id="zone"></select>
         </div>
       </div>
+      <label for="kalender">Kalenderdeutung</label>
+      <select id="kalender">
+        <option value="gregorianisch">Gregorianisch (bürgerlich – Gene-Keys-Standard)</option>
+        <option value="julianisch">Julianisch (AstroChing)</option>
+      </select>
       <button type="submit" id="knopf">Profil berechnen</button>
       <p class="hinweis" id="fehlerzeile"></p>
     </form>
@@ -173,14 +178,14 @@ $("formular").addEventListener("submit", e => {
   const [, stundeS, minuteS] = zm;
   const tag = +tagS, monat = +monatS, jahr = +jahrS, stunde = +stundeS, minute = +minuteS;
 
+  const kalender = $("kalender").value;
   try {
-    const millis = lokalZuUtcMillis(jahr, monat, tag, stunde, minute, zone);
-    const jd = julianischesDatumAusUnix(millis);
+    const jd = geburtsJdBerechnen(jahr, monat, tag, stunde, minute, zone, kalender);
     const pr = genekeysProfil(jd, NAMEN);
     const dsg = gregorianischAusJd(pr.designJd);
     const kopf = {
       zeile: `${String(tag).padStart(2,"0")}.${String(monat).padStart(2,"0")}.${jahr} &middot; ` +
-             `${String(stunde).padStart(2,"0")}:${String(minute).padStart(2,"0")} &middot; ${zone}`,
+             `${String(stunde).padStart(2,"0")}:${String(minute).padStart(2,"0")} &middot; ${zone} &middot; ${kalender}`,
       designDatum: `${String(dsg.tag).padStart(2,"0")}.${String(dsg.monat).padStart(2,"0")}.${dsg.jahr}`,
     };
     const erg = $("ergebnis");
@@ -194,12 +199,13 @@ $("formular").addEventListener("submit", e => {
 });
 
 // Deep-Link: mit vorbelegten Parametern direkt aufrufen, z. B.
-// /?datum=16.03.2006&zeit=14:14&zone=Europe/Berlin
+// /?datum=16.03.2006&zeit=14:14&zone=Europe/Berlin&kalender=gregorianisch
 (function vorbelegen() {
   const q = new URLSearchParams(location.search);
   if (q.has("datum")) $("datum").value = q.get("datum");
   if (q.has("zeit")) $("zeit").value = q.get("zeit");
   if (q.has("zone")) $("zone").value = q.get("zone");
+  if (q.has("kalender")) $("kalender").value = q.get("kalender");
   if (q.has("datum") && q.has("zeit")) {
     $("formular").dispatchEvent(new Event("submit", { cancelable: true }));
   }

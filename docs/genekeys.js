@@ -169,6 +169,38 @@ function julianischesDatumAusUnix(millisUtc) {
   return millisUtc / 86400000 + 2440587.5;
 }
 
+// Julianisches Datum aus Kalenderdigits, mit Kalenderwahl (gemeinfreie
+// Fliegel/van-Flandern-Formel, gleiche Konvention wie genekeys/zeit.py).
+// kalender: "gregorianisch" (Standard) oder "julianisch" (AstroChing,
+// seit 1900 ein Versatz von 13 Tagen zum buergerlichen Datum).
+function julianischesDatumFormel(jahr, monat, tag, stundeDezimal, kalender) {
+  if (monat <= 2) { jahr -= 1; monat += 12; }
+  let b;
+  if (kalender === "julianisch") {
+    b = 0;
+  } else {
+    const a = Math.floor(jahr / 100);
+    b = 2 - a + Math.floor(a / 4);
+  }
+  return (Math.floor(365.25 * (jahr + 4716)) + Math.floor(30.6001 * (monat + 1))
+    + tag + b - 1524.5 + stundeDezimal / 24.0);
+}
+
+// Geburts-JD (UT) aus lokalem Datum/Uhrzeit/Zone/Kalender -- mirror von
+// zeit.lokal_zu_jd_ut(): bei julianischer Deutung wird das DATUM zuerst
+// ins Gregorianische geschoben, die Zeitzone gilt fuer den verschobenen
+// (gregorianischen) Moment, weil nur dafuer echte DST-Regeln existieren.
+function geburtsJdBerechnen(jahr, monat, tag, stunde, minute, zone, kalender) {
+  const jdMitternacht = julianischesDatumFormel(jahr, monat, tag, 0.0, kalender);
+  const g = gregorianischAusJd(jdMitternacht);
+  const millis = lokalZuUtcMillis(g.jahr, g.monat, g.tag, stunde, minute, zone);
+  const d = new Date(millis);
+  const stundeUtDezimal = d.getUTCHours() + d.getUTCMinutes() / 60
+    + (d.getUTCSeconds() + d.getUTCMilliseconds() / 1000) / 3600;
+  return julianischesDatumFormel(d.getUTCFullYear(), d.getUTCMonth() + 1,
+    d.getUTCDate(), stundeUtDezimal, "gregorianisch");
+}
+
 function gregorianischAusJd(jd) {
   const z = Math.floor(jd + 0.5);
   const f = jd + 0.5 - z;
