@@ -1,8 +1,22 @@
 # Gene-Keys-Profil
 
+**Live: https://laurenzcopywriting-stack.github.io/gene-keys-profile/**
+(laeuft komplett im Browser, keine Installation noetig)
+
 Eine eigenstaendige, kleine Web-App, die das Gene-Keys- / Human-Design-
 Hologenetische-Profil aus Geburtsdatum, -uhrzeit und Zeitzone berechnet und
 als Rad ("Mandala") mit ausfuehrlicher Deutung darstellt.
+
+Es gibt zwei Varianten in diesem Repo:
+
+- **`docs/`** -- die Live-Version oben: reines JavaScript, laeuft direkt im
+  Browser via GitHub Pages. Nutzt eine oeffentlich dokumentierte
+  Naeherungsformel fuer Planetenpositionen (Schlyter-Methode, siehe
+  `docs/ephemeris.js`) -- auf einige Bogenminuten genau.
+- **`server.py` + `genekeys/`** -- die praezise Python-Version mit
+  Skyfield/DE421 (Bogensekunden-Genauigkeit), zum lokalen Selbstbetrieb.
+  Beide Varianten liefern an den getesteten Referenzdaten identische
+  Tor.Linie-Werte.
 
 ## Was das ist
 
