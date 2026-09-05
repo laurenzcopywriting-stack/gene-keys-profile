@@ -139,30 +139,47 @@ function genekeysProfil(jdGeburt, namen) {
 // Lokale Uhrzeit in einer IANA-Zeitzone -> UT-Millisekunden, per
 // Intl.DateTimeFormat-Rueckrechnung (der uebliche Weg, weil das native
 // Date-Objekt keine "baue mir eine Zeit in Zone X"-Funktion hat).
+// Zonenversatz (ms, oestlich von UTC positiv) zu einem echten Zeitpunkt.
+function zonenVersatzMillis(zeitpunktMillis, fmt) {
+  const teile = fmt.formatToParts(new Date(zeitpunktMillis));
+  const hole = t => parseInt(teile.find(p => p.type === t).value, 10);
+  const gelesenAlsUtc = Date.UTC(hole("year"), hole("month") - 1, hole("day"),
+                                 hole("hour"), hole("minute"), hole("second"));
+  return gelesenAlsUtc - zeitpunktMillis;
+}
+
+// Lokale Wanduhrzeit in einer Zone -> echter UTC-Zeitpunkt.
+//
+// An Sommerzeitgrenzen ist das nicht eindeutig, und beide Sonderfaelle
+// muessen so ausgehen wie in Python (datetime + ZoneInfo mit fold=0),
+// damit Browser- und Python-Variante identisch rechnen:
+//
+//   * Rueckstellung: die Uhrzeit gibt es ZWEIMAL (z. B. 02:30 am
+//     29.09.1985 in Berlin). fold=0 nimmt die erste, also noch die
+//     Sommerzeit-Lesart -- den frueheren der beiden Zeitpunkte.
+//   * Vorstellung: die Uhrzeit gibt es GAR NICHT (z. B. 01:30 am
+//     26.03.2006 in London, die Uhr springt 01:00 -> 02:00). fold=0
+//     rechnet mit dem Versatz VOR der Umstellung.
+//
+// Beide Faelle trifft dieselbe Regel: den Versatz von vor der Umstellung
+// nehmen, ausser der Zeitpunkt danach ist der einzige, der wirklich auf
+// die gesuchte Wanduhrzeit passt.
 function lokalZuUtcMillis(jahr, monat, tag, stunde, minute, zone) {
-  // Zieldigits als UTC-Zahlwert -- fester Bezugspunkt, NIE veraendert.
-  const zielAlsUtcDigits = Date.UTC(jahr, monat - 1, tag, stunde, minute);
-  let kandidat = zielAlsUtcDigits;
+  const ziel = Date.UTC(jahr, monat - 1, tag, stunde, minute);
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: zone, hourCycle: "h23",
     year: "numeric", month: "2-digit", day: "2-digit",
     hour: "2-digit", minute: "2-digit", second: "2-digit",
   });
-  for (let i = 0; i < 3; i++) {
-    const teile = fmt.formatToParts(new Date(kandidat));
-    const hole = t => parseInt(teile.find(p => p.type === t).value, 10);
-    const gelesenAlsUtc = Date.UTC(hole("year"), hole("month") - 1, hole("day"),
-                                   hole("hour"), hole("minute"), hole("second"));
-    // Zonenversatz beim aktuellen Kandidaten (ms). Der naechste Kandidat
-    // wird IMMER vom festen Ziel aus neu berechnet -- sonst akkumuliert
-    // sich der Versatz Runde um Runde (der eigentliche Fehler hier war
-    // genau das: += statt Neuberechnung ab dem festen Bezugspunkt).
-    const versatz = gelesenAlsUtc - kandidat;
-    const naechster = zielAlsUtcDigits - versatz;
-    if (naechster === kandidat) break;
-    kandidat = naechster;
-  }
-  return kandidat;
+  const TAG = 86400000;
+  // Versatz einen Tag vor und nach dem Ziel -- Umstellungen liegen weit
+  // genug auseinander, dass diese zwei Proben die beiden moeglichen
+  // Versaetze rund um eine Umstellung sicher einfangen.
+  const kandidatVor = ziel - zonenVersatzMillis(ziel - TAG, fmt);
+  const kandidatNach = ziel - zonenVersatzMillis(ziel + TAG, fmt);
+  const passt = k => k + zonenVersatzMillis(k, fmt) === ziel;
+  if (!passt(kandidatVor) && passt(kandidatNach)) return kandidatNach;
+  return kandidatVor;
 }
 
 function julianischesDatumAusUnix(millisUtc) {
@@ -197,9 +214,19 @@ function julianischesDatumFormel(jahr, monat, tag, stundeDezimal, kalender) {
 function geburtsJdBerechnen(jahr, monat, tag, stunde, minute, zone, kalender) {
   const jdMitternacht = julianischesDatumFormel(jahr, monat, tag, 0.0, kalender);
   const g = gregorianischAusJd(jdMitternacht);
-  const eingetragenDigits = Date.UTC(jahr, monat - 1, tag, stunde, minute);
+  // Gibt es das eingetragene Datum gregorianisch ueberhaupt? (29.02. in
+  // einem Nicht-Schaltjahr rollt in JS stillschweigend auf den 1. Maerz
+  // weiter.) Wenn nicht, gilt -- wie in Python -- der Versatz des
+  // verschobenen Datums.
+  const probe = new Date(Date.UTC(jahr, monat - 1, tag));
+  const eingetragenGueltig = probe.getUTCFullYear() === jahr
+    && probe.getUTCMonth() === monat - 1 && probe.getUTCDate() === tag;
+  const vJahr = eingetragenGueltig ? jahr : g.jahr;
+  const vMonat = eingetragenGueltig ? monat : g.monat;
+  const vTag = eingetragenGueltig ? tag : g.tag;
+  const eingetragenDigits = Date.UTC(vJahr, vMonat - 1, vTag, stunde, minute);
   const versatz = eingetragenDigits
-    - lokalZuUtcMillis(jahr, monat, tag, stunde, minute, zone);
+    - lokalZuUtcMillis(vJahr, vMonat, vTag, stunde, minute, zone);
   const millis = Date.UTC(g.jahr, g.monat - 1, g.tag, stunde, minute) - versatz;
   const d = new Date(millis);
   const stundeUtDezimal = d.getUTCHours() + d.getUTCMinutes() / 60
