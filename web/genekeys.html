@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Gene-Keys-Profil</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{font-family:'Inter',system-ui,sans-serif;margin:0;background:#f4f1ec;
+       color:#3a3730;min-height:100vh}
+  .wrap{max-width:34rem;margin:0 auto;padding:3rem 1.2rem 4rem}
+  h1{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;
+     font-size:2.3rem;text-align:center;margin:0 0 .3rem;color:#4a4436}
+  .sub{text-align:center;color:#8a8064;font-size:.92rem;margin:0 0 2.2rem;
+       line-height:1.5}
+  .karte{background:#fdfcf9;border:1px solid #e4ddc9;border-radius:1rem;
+         padding:1.6rem 1.4rem;box-shadow:0 2px 14px rgba(90,79,54,.08)}
+  label{display:block;font-size:.82rem;font-weight:600;color:#6a5f42;
+        margin:1rem 0 .3rem}
+  label:first-of-type{margin-top:0}
+  input,select{width:100%;font:inherit;font-size:1rem;padding:.6rem .7rem;
+        border:1px solid #d7cfb8;border-radius:.5rem;background:#fff;
+        color:#3a3730}
+  input:focus,select:focus{outline:2px solid #b7a97e;outline-offset:1px}
+  .zwei{display:grid;grid-template-columns:1fr 1fr;gap:0 .8rem}
+  .hinweis{font-size:.82rem;color:#8a8064;margin:.35rem 0 0;line-height:1.4}
+  .fehler{color:#a5372e}
+  button{width:100%;margin-top:1.4rem;padding:.75rem;font:inherit;
+         font-weight:600;font-size:1rem;border:none;border-radius:.6rem;
+         background:#6a5f42;color:#fbf9f3;cursor:pointer}
+  button:disabled{opacity:.6;cursor:wait}
+  button:hover:not(:disabled){background:#5a5036}
+  .info{margin-top:2rem;font-size:.85rem;color:#8a8064;line-height:1.55}
+  .info b{color:#5a4f36}
+  footer{text-align:center;margin-top:2rem;font-size:.78rem;color:#a89c7e}
+  footer a{color:#8a7a58}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Gene-Keys-Profil</h1>
+  <p class="sub">Dein Hologenetisches Profil aus den 64 Toren &ndash;<br>
+     Geburtsdaten eingeben, Rad und Deutung erscheinen sofort.</p>
+
+  <form class="karte" id="formular" autocomplete="off">
+    <label for="datum">Geburtsdatum (TT.MM.JJJJ)</label>
+    <input id="datum" required placeholder="16.03.2006"
+           inputmode="numeric" pattern="\d{1,2}\.\d{1,2}\.\d{4}">
+    <div class="zwei">
+      <div>
+        <label for="zeit">Uhrzeit (HH:MM)</label>
+        <input id="zeit" required placeholder="14:14"
+               inputmode="numeric" pattern="\d{1,2}:\d{2}">
+      </div>
+      <div>
+        <label for="zone">Zeitzone am Geburtsort</label>
+        <select id="zone"></select>
+      </div>
+    </div>
+    <button type="submit" id="knopf">Profil berechnen</button>
+    <p class="hinweis" id="fehlerzeile"></p>
+  </form>
+
+  <p class="info">
+    <b>Wie es gerechnet wird:</b> Die 64 Tore liegen als festes Rad auf der
+    Ekliptik (Tor 41 beginnt bei 2&deg; Wassermann). Deine Persönlichkeits-
+    Sphären kommen aus dem Geburtsmoment, deine Design-Sphären aus dem
+    Moment, in dem die Sonne 88&deg; vorher stand &ndash; rund 88 Tage
+    früher. Gene Keys rechnet dabei mit dem bürgerlichen (gregorianischen)
+    Datum.
+  </p>
+  <footer>Eigene Berechnung aus Ephemeridendaten (Skyfield/DE421) &middot;
+    Tornamen sind gemeinfreie klassische I-Ging-Namen, keine
+    Gene-Keys-Texte.</footer>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+
+// Kuratierte Auswahl gaengiger IANA-Zeitzonen -- kein voller Ortsnachschlag,
+// diese Seite ist bewusst eigenstaendig und schlank gehalten.
+const ZONEN = [
+  ["Europe/Berlin", "Mitteleuropa (Berlin, Wien, Zürich, Rom, Madrid)"],
+  ["Europe/London", "Westeuropa (London, Lissabon, Dublin)"],
+  ["Europe/Bucharest", "Osteuropa (Bukarest, Athen, Helsinki)"],
+  ["Europe/Moscow", "Moskau"],
+  ["Europe/Istanbul", "Istanbul"],
+  ["Africa/Cairo", "Kairo"],
+  ["Africa/Johannesburg", "Johannesburg"],
+  ["Africa/Lagos", "Lagos"],
+  ["Asia/Dubai", "Dubai"],
+  ["Asia/Kolkata", "Indien (Neu-Delhi, Mumbai)"],
+  ["Asia/Bangkok", "Bangkok, Jakarta"],
+  ["Asia/Shanghai", "China, Singapur, Manila"],
+  ["Asia/Tokyo", "Tokio"],
+  ["Asia/Seoul", "Seoul"],
+  ["Australia/Sydney", "Sydney, Melbourne"],
+  ["Australia/Perth", "Perth"],
+  ["Pacific/Auckland", "Auckland"],
+  ["America/Sao_Paulo", "São Paulo, Buenos Aires"],
+  ["America/Bogota", "Bogotá, Lima"],
+  ["America/Mexico_City", "Mexiko-Stadt"],
+  ["America/New_York", "US-Ostküste (New York, Miami, Toronto)"],
+  ["America/Chicago", "US-Zentral (Chicago, Dallas)"],
+  ["America/Denver", "US-Bergzeit (Denver)"],
+  ["America/Los_Angeles", "US-Westküste (Los Angeles, Vancouver)"],
+  ["Pacific/Honolulu", "Hawaii"],
+  ["UTC", "UTC (Weltzeit, keine Verschiebung)"],
+];
+const zonenwahl = $("zone");
+ZONEN.forEach(([wert, label]) => {
+  const o = document.createElement("option");
+  o.value = wert; o.textContent = label;
+  zonenwahl.appendChild(o);
+});
+// Systemzone vorschlagen, falls in der Liste enthalten -- sonst Berlin.
+try {
+  const hier = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  if (ZONEN.some(([w]) => w === hier)) zonenwahl.value = hier;
+} catch (e) {}
+
+function fehler(text) {
+  $("fehlerzeile").innerHTML = text ? '<span class="fehler"></span>' : "";
+  if (text) $("fehlerzeile").firstChild.textContent = text;
+}
+
+$("formular").addEventListener("submit", e => {
+  e.preventDefault();
+  fehler("");
+  const datum = $("datum").value.trim(), zeit = $("zeit").value.trim();
+  if (!datum || !zeit) { fehler("Bitte Datum und Uhrzeit eingeben."); return; }
+  const u = new URLSearchParams({ datum, zeit, zone: $("zone").value });
+  location.href = "/genekeys-mandala?" + u.toString();
+});
+
+// Deep-Link: mit vorbelegten Parametern direkt aufrufen, z. B.
+// /?datum=16.03.2006&zeit=14:14&zone=Europe/Berlin
+(function vorbelegen() {
+  const q = new URLSearchParams(location.search);
+  if (q.has("datum")) $("datum").value = q.get("datum");
+  if (q.has("zeit")) $("zeit").value = q.get("zeit");
+  if (q.has("zone")) $("zone").value = q.get("zone");
+})();
+</script>
+</body>
+</html>
